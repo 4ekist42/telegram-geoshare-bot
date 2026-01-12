@@ -1,0 +1,1375 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Конфигуратор</title>
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin=""
+    />
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        .wrapper {
+            display: grid;
+            grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+            grid-template-rows: auto minmax(0, 1fr);
+            grid-template-areas:
+                "controls controls"
+                "map panel";
+            height: 100%;
+        }
+
+        #controls {
+            grid-area: controls;
+            padding: 8px 12px;
+            border-bottom: 1px solid #ddd;
+            background: #f8f9fa;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            font-size: 13px;
+        }
+
+        #map {
+            grid-area: map;
+            height: 100%;
+            width: 100%;
+        }
+
+        #panel {
+            grid-area: panel;
+            border-left: 1px solid #ddd;
+            padding: 8px 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-size: 14px;
+            max-height: 100%;
+            overflow: hidden;
+        }
+
+        .panel-section {
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 6px 8px;
+            background: #fafafa;
+            overflow: auto;
+        }
+
+        .panel-section h3 {
+            margin: 0 0 4px;
+            font-size: 14px;
+        }
+
+        label {
+            font-size: 13px;
+        }
+
+        input[type="number"],
+        input[type="text"],
+        select {
+            padding: 2px 4px;
+            font-size: 13px;
+        }
+
+        input[type="number"] {
+            width: 90px;
+        }
+
+        input[type="text"] {
+            width: 160px;
+        }
+
+        .group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            font-size: 13px;
+            padding: 3px 8px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            background: #fff;
+            cursor: pointer;
+        }
+
+        .btn:hover {
+            background: #f0f0f0;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 140px;
+            font-family: monospace;
+            font-size: 12px;
+            resize: vertical;
+        }
+
+        .legend {
+            font-size: 11px;
+        }
+
+        .legend span {
+            margin-right: 8px;
+        }
+
+        .legend-dot {
+            display: inline-block;
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            margin-right: 4px;
+            vertical-align: middle;
+        }
+
+        .legend-dot.secure-zone {
+            background: #1565c0;
+        }
+
+        .legend-dot.danger-zone {
+            background: #c62828;
+        }
+
+        .zones-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            max-height: 220px;
+            overflow-y: auto;
+            font-size: 13px;
+        }
+
+        .zone-row {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 4px 6px;
+            background: #fff;
+        }
+
+        .zone-row-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 500;
+            font-size: 13px;
+        }
+
+        .zone-row-header span.badge {
+            font-size: 11px;
+            padding: 1px 6px;
+            border-radius: 999px;
+            color: #fff;
+        }
+
+        .zone-row-header span.badge.secure {
+            background: #1565c0;
+        }
+
+        .zone-row-header span.badge.danger {
+            background: #c62828;
+        }
+
+        .zone-row-meta {
+            font-size: 11px;
+            color: #555;
+            margin-top: 2px;
+        }
+
+        .zone-row-settings {
+            margin-top: 4px;
+            font-size: 12px;
+        }
+
+        .zone-row-settings .sub-options {
+            margin-left: 18px;
+            margin-top: 2px;
+        }
+
+        .zone-row-settings label {
+            display: inline-block;
+            margin-right: 8px;
+        }
+
+        .zone-row-settings label.disabled {
+            opacity: 0.5;
+        }
+
+        .small-note {
+            font-size: 11px;
+            color: #555;
+        }
+
+        @media (max-width: 800px) {
+            .wrapper {
+                grid-template-columns: minmax(0, 1fr);
+                grid-template-rows: auto 50% 50%;
+                grid-template-areas:
+                    "controls"
+                    "map"
+                    "panel";
+            }
+            #panel {
+                border-left: none;
+                border-top: 1px solid #ddd;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="wrapper">
+    <div id="controls">
+        <div class="group">
+            <strong>Тип новой зоны:</strong>
+            <label>
+                <input type="radio" name="zoneType" value="secure" checked>
+                безопасная (secure)
+            </label>
+            <label>
+                <input type="radio" name="zoneType" value="danger">
+                опасная (danger)
+            </label>
+        </div>
+
+        <div class="group">
+            <label for="zoneRadius">Радиус зоны, м:</label>
+            <input type="number" id="zoneRadius" value="1000" step="100" min="1">
+        </div>
+
+        <div class="group">
+            <label for="zoneName">Название (опц.):</label>
+            <input type="text" id="zoneName" placeholder="например, Склад А">
+        </div>
+
+        <div class="group">
+            <button class="btn" id="btnRemoveLastZone">Удалить последнюю зону</button>
+            <button class="btn" id="btnClearZones">Удалить все зоны</button>
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <div id="panel">
+        <div class="panel-section">
+            <h3>Как пользоваться</h3>
+            <ul style="margin: 0 0 4px 16px; padding: 0; font-size: 13px;">
+                <li>Выбери тип зоны, радиус и (при желании) название.</li>
+                <li>Клик по карте создаёт круг — это новая зона.</li>
+                <li>Зоны подсвечиваются: безопасная — синяя, опасная — красная.</li>
+                <li>Для каждой зоны можно включить отдельные настройки уведомлений.</li>
+                <li>JSON ниже можно редактировать и загружать обратно.</li>
+            </ul>
+            <div class="legend">
+                <span><span class="legend-dot secure-zone"></span>безопасная зона (secure)</span>
+                <span><span class="legend-dot danger-zone"></span>опасная зона (danger)</span>
+            </div>
+        </div>
+
+        <div class="panel-section">
+            <h3>Глобальные уведомления по зонам</h3>
+            <label>
+                <input type="checkbox" id="chkGlobalExitSecure" checked>
+                уведомлять о выходе из безопасной зоны
+            </label><br>
+            <label>
+                <input type="checkbox" id="chkGlobalEnterSecure" checked>
+                уведомлять о возврате в безопасную зону
+            </label><br>
+            <label>
+                <input type="checkbox" id="chkGlobalExitDanger" checked>
+                уведомлять о выходе из опасной зоны
+            </label><br>
+            <label>
+                <input type="checkbox" id="chkGlobalEnterDanger" checked>
+                уведомлять о входе в опасную зону
+            </label>
+        </div>
+
+        <div class="panel-section" style="flex: 1 1 auto;">
+            <h3>Зоны</h3>
+            <div id="zonesList" class="zones-list"></div>
+            <p class="small-note" style="margin-top:4px;">
+                Для каждой зоны: флажок «отдельные настройки» и ниже —
+                «уведомлять о входе» / «уведомлять о выходе».
+                Если флажок отдельные настройки <strong>не</strong> включен,
+                используются глобальные настройки выше.
+            </p>
+        </div>
+
+        <div class="panel-section">
+            <h3>Настройка Telegram</h3>
+            <div class="small-note" style="margin-bottom:4px;">
+                Кому и как слать уведомления, от кого принимать локацию и что показывать в тексте.
+            </div>
+
+            <div style="margin-bottom:6px;">
+                <strong>Глобальные настройки уведомлений Telegram</strong><br>
+                <label>
+                    <input type="checkbox" id="tgGlobalStart" checked>
+                    уведомлять о начале вещания локации
+                </label><br>
+                <label>
+                    <input type="checkbox" id="tgGlobalStop" checked>
+                    уведомлять о прекращении вещания локации
+                </label><br>
+                <label>
+                    <input type="checkbox" id="tgGlobalAbsentEnabled">
+                    уведомлять, если нет локации более
+                    <select id="tgGlobalAbsentHours">
+                        <option value="0">0 ч</option>
+                        <option value="1">1 ч</option>
+                        <option value="2">2 ч</option>
+                        <option value="3">3 ч</option>
+                        <option value="4">4 ч</option>
+                        <option value="5">5 ч</option>
+                        <option value="6">6 ч</option>
+                        <option value="7">7 ч</option>
+                        <option value="8">8 ч</option>
+                        <option value="9">9 ч</option>
+                        <option value="10">10 ч</option>
+                        <option value="11">11 ч</option>
+                        <option value="12">12 ч</option>
+                    </select>
+                    <select id="tgGlobalAbsentMinutes">
+                        <option value="0">0 мин</option>
+                        <option value="5">5 мин</option>
+                        <option value="10">10 мин</option>
+                        <option value="15">15 мин</option>
+                        <option value="20">20 мин</option>
+                        <option value="25">25 мин</option>
+                        <option value="30">30 мин</option>
+                        <option value="35">35 мин</option>
+                        <option value="40">40 мин</option>
+                        <option value="45">45 мин</option>
+                        <option value="50">50 мин</option>
+                        <option value="55">55 мин</option>
+                    </select>
+                </label><br>
+                <label>
+                    <input type="checkbox" id="tgGlobalSendLocation">
+                    присылать текущую локацию вместе с уведомлением
+                </label>
+            </div>
+
+            <div style="margin-bottom:6px;">
+                <strong>Администраторы (кому слать уведомления)</strong><br>
+                <div class="group" style="margin:4px 0;">
+                    <label>id: <input type="text" id="tgAdminId"></label>
+                    <label>имя (опц.): <input type="text" id="tgAdminName"></label>
+                    <button class="btn" id="tgAdminAdd">Добавить</button>
+                </div>
+                <div id="tgAdminsList" class="zones-list"></div>
+                <div class="small-note">
+                    Если список пустой — можно считать, что используется один общий конфиг без адресной рассылки,
+                    либо обрабатываешь это на своей стороне.
+                    Пустой список зон у админа = получать уведомления по всем зонам.
+                </div>
+            </div>
+
+            <div style="margin-bottom:6px;">
+                <strong>От кого принимать локацию</strong><br>
+                <label>
+                    <input type="radio" name="tgAcceptMode" id="tgAcceptAny" value="any" checked>
+                    от любых id
+                </label><br>
+                <label>
+                    <input type="radio" name="tgAcceptMode" id="tgAcceptList" value="list">
+                    только от списка id
+                </label>
+                <div id="tgAcceptUsersBlock" style="margin-top:4px; display:none;">
+                    <div class="group" style="margin-bottom:4px;">
+                        <label>id: <input type="text" id="tgAcceptUserId"></label>
+                        <label>имя (опц.): <input type="text" id="tgAcceptUserName"></label>
+                        <button class="btn" id="tgAcceptUserAdd">Добавить</button>
+                    </div>
+                    <div id="tgAcceptUsersList" class="zones-list"></div>
+                    <div class="small-note">
+                        Здесь задаётся от каких id ты вообще принимаешь локации.
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <strong>Что показывать про отправителя локации</strong><br>
+                <label>
+                    <input type="checkbox" id="tgShowName" checked>
+                    показывать имя (если есть)
+                </label><br>
+                <label>
+                    <input type="checkbox" id="tgShowId" checked>
+                    показывать id
+                </label>
+            </div>
+        </div>
+
+        <div class="panel-section">
+            <h3>JSON конфиг</h3>
+            <p style="margin: 0 0 4px; font-size: 12px;">
+                Можно редактировать вручную и нажать «Загрузить из JSON».<br>
+                Структура (схема в общих чертах):<br>
+                <code>{ global, zones, telegram }</code><br>
+                <code>telegram.global</code>, <code>telegram.admins[]</code>, <code>telegram.accept_from</code>, <code>telegram.show_sender</code>.
+            </p>
+            <textarea id="exportArea"></textarea>
+            <div class="group" style="margin-top: 4px;">
+                <button class="btn" id="btnApplyJson">Загрузить из JSON</button>
+                <button class="btn" id="btnResetConfig">Сбросить всё (пустой конфиг)</button>
+                <button class="btn" id="btnDownloadJson">Скачать config.json</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+></script>
+<script>
+    const map = L.map('map').setView([55.751244, 37.618423], 11);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    const zoneRadiusInput = document.getElementById('zoneRadius');
+    const zoneNameInput = document.getElementById('zoneName');
+    const zonesListEl = document.getElementById('zonesList');
+    const exportArea = document.getElementById('exportArea');
+    const btnClearZones = document.getElementById('btnClearZones');
+    const btnRemoveLastZone = document.getElementById('btnRemoveLastZone');
+    const btnApplyJson = document.getElementById('btnApplyJson');
+    const btnResetConfig = document.getElementById('btnResetConfig');
+    const btnDownloadJson = document.getElementById('btnDownloadJson');
+
+    const chkGlobalExitSecure = document.getElementById('chkGlobalExitSecure');
+    const chkGlobalExitDanger = document.getElementById('chkGlobalExitDanger');
+    const chkGlobalEnterDanger = document.getElementById('chkGlobalEnterDanger');
+    const chkGlobalEnterSecure = document.getElementById('chkGlobalEnterSecure');
+
+    const tgGlobalStart = document.getElementById('tgGlobalStart');
+    const tgGlobalStop = document.getElementById('tgGlobalStop');
+    const tgGlobalAbsentEnabled = document.getElementById('tgGlobalAbsentEnabled');
+    const tgGlobalAbsentHours = document.getElementById('tgGlobalAbsentHours');
+    const tgGlobalAbsentMinutes = document.getElementById('tgGlobalAbsentMinutes');
+    const tgGlobalSendLocation = document.getElementById('tgGlobalSendLocation');
+
+    const tgAdminIdInput = document.getElementById('tgAdminId');
+    const tgAdminNameInput = document.getElementById('tgAdminName');
+    const tgAdminAddBtn = document.getElementById('tgAdminAdd');
+    const tgAdminsListEl = document.getElementById('tgAdminsList');
+
+    const tgAcceptAny = document.getElementById('tgAcceptAny');
+    const tgAcceptList = document.getElementById('tgAcceptList');
+    const tgAcceptUsersBlock = document.getElementById('tgAcceptUsersBlock');
+    const tgAcceptUserIdInput = document.getElementById('tgAcceptUserId');
+    const tgAcceptUserNameInput = document.getElementById('tgAcceptUserName');
+    const tgAcceptUserAddBtn = document.getElementById('tgAcceptUserAdd');
+    const tgAcceptUsersListEl = document.getElementById('tgAcceptUsersList');
+
+    const tgShowNameCheckbox = document.getElementById('tgShowName');
+    const tgShowIdCheckbox = document.getElementById('tgShowId');
+
+    let currentZoneType = 'secure';
+    let zoneCounter = 1;
+
+    const zones = [];
+
+    const globalNotifications = {
+        secure: {
+            notify_exit: chkGlobalExitSecure.checked,
+            notify_enter: chkGlobalEnterSecure.checked
+        },
+        danger: {
+            notify_exit: chkGlobalExitDanger.checked,
+            notify_enter: chkGlobalEnterDanger.checked
+        }
+    };
+
+    function createDefaultTelegramConfig() {
+        return {
+            global: {
+                notify_location_start: true,
+                notify_location_stop: true,
+                notify_absent_enabled: false,
+                notify_absent_minutes: 10,
+                send_current_location_with_alert: false
+            },
+            admins: [],
+            accept_from: {
+                mode: 'any',
+                users: []
+            },
+            show_sender: {
+                show_name: true,
+                show_id: true
+            }
+        };
+    }
+
+    let telegramConfig = createDefaultTelegramConfig();
+
+    function getZoneRadius() {
+        const v = parseFloat(zoneRadiusInput.value);
+        return isNaN(v) || v <= 0 ? 1 : v;
+    }
+
+    function setSelectToClosestValue(select, value) {
+        const target = parseInt(value, 10);
+        if (isNaN(target)) return;
+        let best = parseInt(select.options[0].value, 10);
+        let bestDiff = Math.abs(best - target);
+        for (let i = 1; i < select.options.length; i++) {
+            const v = parseInt(select.options[i].value, 10);
+            const d = Math.abs(v - target);
+            if (d < bestDiff) {
+                bestDiff = d;
+                best = v;
+            }
+        }
+        select.value = String(best);
+    }
+
+    document.querySelectorAll('input[name="zoneType"]').forEach(r => {
+        r.addEventListener('change', () => {
+            currentZoneType = r.value;
+        });
+    });
+
+    function applyGlobalsToUI() {
+        chkGlobalExitSecure.checked = !!globalNotifications.secure.notify_exit;
+        chkGlobalEnterSecure.checked = !!globalNotifications.secure.notify_enter;
+        chkGlobalExitDanger.checked = !!globalNotifications.danger.notify_exit;
+        chkGlobalEnterDanger.checked = !!globalNotifications.danger.notify_enter;
+    }
+
+    chkGlobalExitSecure.addEventListener('change', () => {
+        globalNotifications.secure.notify_exit = chkGlobalExitSecure.checked;
+        updateExport();
+    });
+
+    chkGlobalExitDanger.addEventListener('change', () => {
+        globalNotifications.danger.notify_exit = chkGlobalExitDanger.checked;
+        updateExport();
+    });
+
+    chkGlobalEnterDanger.addEventListener('change', () => {
+        globalNotifications.danger.notify_enter = chkGlobalEnterDanger.checked;
+        updateExport();
+    });
+
+    chkGlobalEnterSecure.addEventListener('change', () => {
+        globalNotifications.secure.notify_enter = chkGlobalEnterSecure.checked;
+        updateExport();
+    });
+
+    function addZone(latlng) {
+        const type = currentZoneType;
+        const name = zoneNameInput.value.trim() || null;
+        const radius = getZoneRadius();
+        const isDanger = type === 'danger';
+
+        const circle = L.circle(latlng, {
+            radius: radius,
+            color: isDanger ? '#c62828' : '#1565c0',
+            weight: 2,
+            fillColor: isDanger ? '#ef5350' : '#64b5f6',
+            fillOpacity: 0.15
+        }).addTo(map);
+
+        if (name) {
+            circle.bindTooltip(
+                `${name} (${isDanger ? 'опасная' : 'безопасная'})`,
+                { permanent: false }
+            );
+        }
+
+        const zone = {
+            id: zoneCounter++,
+            type: type,
+            name: name,
+            circle: circle,
+            notifyOverride: false,
+            notifyOnEnter: false,
+            notifyOnExit: false
+        };
+
+        zones.push(zone);
+        renderZonesListAndExport();
+    }
+
+    map.on('click', (e) => {
+        addZone(e.latlng);
+    });
+
+    function renderZonesListAndExport() {
+        zonesListEl.innerHTML = '';
+
+        zones.forEach(zone => {
+            const ll = zone.circle.getLatLng();
+            const radius = zone.circle.getRadius();
+            const isDanger = zone.type === 'danger';
+
+            const row = document.createElement('div');
+            row.className = 'zone-row';
+
+            const header = document.createElement('div');
+            header.className = 'zone-row-header';
+
+            const title = document.createElement('div');
+            const typeLabel = isDanger ? 'опасная' : 'безопасная';
+            const nameLabel = zone.name ? ` — ${zone.name}` : ' — без имени';
+            title.textContent = `Зона #${zone.id}: ${typeLabel}${nameLabel}`;
+
+            const badge = document.createElement('span');
+            badge.className = 'badge ' + (isDanger ? 'danger' : 'secure');
+            badge.textContent = zone.type;
+
+            header.appendChild(title);
+            header.appendChild(badge);
+
+            const meta = document.createElement('div');
+            meta.className = 'zone-row-meta';
+            meta.textContent =
+                `центр: ${ll.lat.toFixed(6)}, ${ll.lng.toFixed(6)} • радиус: ${radius.toFixed(1)} м`;
+
+            const settings = document.createElement('div');
+            settings.className = 'zone-row-settings';
+
+            const overrideLabel = document.createElement('label');
+            const overrideInput = document.createElement('input');
+            overrideInput.type = 'checkbox';
+            overrideInput.checked = zone.notifyOverride;
+
+            overrideLabel.appendChild(overrideInput);
+            overrideLabel.appendChild(document.createTextNode(' отдельные настройки для этой зоны'));
+
+            const subOptions = document.createElement('div');
+            subOptions.className = 'sub-options';
+
+            const enterLabel = document.createElement('label');
+            const enterInput = document.createElement('input');
+            enterInput.type = 'checkbox';
+            enterInput.checked = zone.notifyOnEnter;
+            enterLabel.appendChild(enterInput);
+            enterLabel.appendChild(document.createTextNode(' уведомлять о входе'));
+
+            const exitLabel = document.createElement('label');
+            const exitInput = document.createElement('input');
+            exitInput.type = 'checkbox';
+            exitInput.checked = zone.notifyOnExit;
+            exitLabel.appendChild(exitInput);
+            exitLabel.appendChild(document.createTextNode(' уведомлять о выходе'));
+
+            subOptions.appendChild(enterLabel);
+            subOptions.appendChild(exitLabel);
+
+            function applyOverrideState() {
+                const enabled = overrideInput.checked;
+                zone.notifyOverride = enabled;
+
+                enterInput.disabled = !enabled;
+                exitInput.disabled = !enabled;
+
+                if (!enabled) {
+                    enterLabel.classList.add('disabled');
+                    exitLabel.classList.add('disabled');
+                } else {
+                    enterLabel.classList.remove('disabled');
+                    exitLabel.classList.remove('disabled');
+                }
+            }
+
+            applyOverrideState();
+
+            overrideInput.addEventListener('change', () => {
+                zone.notifyOverride = overrideInput.checked;
+                applyOverrideState();
+                updateExport();
+            });
+
+            enterInput.addEventListener('change', () => {
+                zone.notifyOnEnter = enterInput.checked;
+                updateExport();
+            });
+
+            exitInput.addEventListener('change', () => {
+                zone.notifyOnExit = exitInput.checked;
+                updateExport();
+            });
+
+            settings.appendChild(overrideLabel);
+            settings.appendChild(subOptions);
+
+            row.appendChild(header);
+            row.appendChild(meta);
+            row.appendChild(settings);
+
+            zonesListEl.appendChild(row);
+
+            row.addEventListener('click', (ev) => {
+                if (ev.target.tagName.toLowerCase() === 'input') return;
+                map.setView(ll, Math.max(map.getZoom(), 14));
+            });
+        });
+
+        updateExport();
+    }
+
+    function applyTelegramGlobalToUI() {
+        tgGlobalStart.checked = !!telegramConfig.global.notify_location_start;
+        tgGlobalStop.checked = !!telegramConfig.global.notify_location_stop;
+        tgGlobalAbsentEnabled.checked = !!telegramConfig.global.notify_absent_enabled;
+        tgGlobalSendLocation.checked = !!telegramConfig.global.send_current_location_with_alert;
+
+        const total = telegramConfig.global.notify_absent_minutes || 0;
+        let hours = Math.floor(total / 60);
+        let minutes = total % 60;
+        if (hours < 0) hours = 0;
+        if (hours > 12) hours = 12;
+
+        setSelectToClosestValue(tgGlobalAbsentHours, hours);
+        setSelectToClosestValue(tgGlobalAbsentMinutes, minutes);
+
+        const disabled = !tgGlobalAbsentEnabled.checked;
+        tgGlobalAbsentHours.disabled = disabled;
+        tgGlobalAbsentMinutes.disabled = disabled;
+    }
+
+    function updateTelegramGlobalFromUI() {
+        telegramConfig.global.notify_location_start = !!tgGlobalStart.checked;
+        telegramConfig.global.notify_location_stop = !!tgGlobalStop.checked;
+        telegramConfig.global.notify_absent_enabled = !!tgGlobalAbsentEnabled.checked;
+
+        const h = parseInt(tgGlobalAbsentHours.value, 10) || 0;
+        const m = parseInt(tgGlobalAbsentMinutes.value, 10) || 0;
+        telegramConfig.global.notify_absent_minutes = h * 60 + m;
+
+        telegramConfig.global.send_current_location_with_alert = !!tgGlobalSendLocation.checked;
+
+        const disabled = !tgGlobalAbsentEnabled.checked;
+        tgGlobalAbsentHours.disabled = disabled;
+        tgGlobalAbsentMinutes.disabled = disabled;
+
+        updateExport();
+    }
+
+    tgGlobalStart.addEventListener('change', updateTelegramGlobalFromUI);
+    tgGlobalStop.addEventListener('change', updateTelegramGlobalFromUI);
+    tgGlobalAbsentEnabled.addEventListener('change', updateTelegramGlobalFromUI);
+    tgGlobalAbsentHours.addEventListener('change', updateTelegramGlobalFromUI);
+    tgGlobalAbsentMinutes.addEventListener('change', updateTelegramGlobalFromUI);
+    tgGlobalSendLocation.addEventListener('change', updateTelegramGlobalFromUI);
+
+    function renderTelegramAdmins() {
+        tgAdminsListEl.innerHTML = '';
+
+        telegramConfig.admins.forEach((adm, index) => {
+            const row = document.createElement('div');
+            row.className = 'zone-row';
+
+            const header = document.createElement('div');
+            header.className = 'zone-row-header';
+
+            const title = document.createElement('div');
+            const name = adm.name ? adm.name : '(без имени)';
+            title.textContent = `Админ #${index + 1}: ${name} (id: ${adm.id})`;
+
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'btn';
+            removeBtn.style.fontSize = '11px';
+            removeBtn.textContent = 'Удалить';
+            removeBtn.addEventListener('click', (ev) => {
+                ev.stopPropagation();
+                telegramConfig.admins.splice(index, 1);
+                renderTelegramAdmins();
+                updateExport();
+            });
+
+            header.appendChild(title);
+            header.appendChild(removeBtn);
+
+            const settings = document.createElement('div');
+            settings.className = 'zone-row-settings';
+
+            const overrideLabel = document.createElement('label');
+            const overrideInput = document.createElement('input');
+            overrideInput.type = 'checkbox';
+            overrideInput.checked = !!adm.override;
+            overrideLabel.appendChild(overrideInput);
+            overrideLabel.appendChild(document.createTextNode(' отдельные настройки для этого админа'));
+
+            const subOptions = document.createElement('div');
+            subOptions.className = 'sub-options';
+
+            const startLabel = document.createElement('label');
+            const startInput = document.createElement('input');
+            startInput.type = 'checkbox';
+            startInput.checked = !!adm.notify_location_start;
+            startLabel.appendChild(startInput);
+            startLabel.appendChild(document.createTextNode(' уведомлять о начале вещания'));
+
+            const stopLabel = document.createElement('label');
+            const stopInput = document.createElement('input');
+            stopInput.type = 'checkbox';
+            stopInput.checked = !!adm.notify_location_stop;
+            stopLabel.appendChild(stopInput);
+            stopLabel.appendChild(document.createTextNode(' уведомлять о прекращении вещания'));
+
+            const absentLabel = document.createElement('label');
+            const absentInput = document.createElement('input');
+            absentInput.type = 'checkbox';
+            absentInput.checked = !!adm.notify_absent_enabled;
+            absentLabel.appendChild(absentInput);
+            absentLabel.appendChild(document.createTextNode(' нет локации более'));
+
+            const absentHoursSelect = document.createElement('select');
+            const absentMinutesSelect = document.createElement('select');
+
+            for (let h = 0; h <= 12; h++) {
+                const opt = document.createElement('option');
+                opt.value = String(h);
+                opt.textContent = h + ' ч';
+                absentHoursSelect.appendChild(opt);
+            }
+            const minuteValues = [0,5,10,15,20,25,30,35,40,45,50,55];
+            minuteValues.forEach(v => {
+                const opt = document.createElement('option');
+                opt.value = String(v);
+                opt.textContent = v + ' мин';
+                absentMinutesSelect.appendChild(opt);
+            });
+
+            const totalMin = adm.notify_absent_minutes || 0;
+            let ah = Math.floor(totalMin / 60);
+            let am = totalMin % 60;
+            if (ah < 0) ah = 0;
+            if (ah > 12) ah = 12;
+            setSelectToClosestValue(absentHoursSelect, ah);
+            setSelectToClosestValue(absentMinutesSelect, am);
+
+            absentLabel.appendChild(absentHoursSelect);
+            absentLabel.appendChild(absentMinutesSelect);
+
+            const sendLabel = document.createElement('label');
+            const sendInput = document.createElement('input');
+            sendInput.type = 'checkbox';
+            sendInput.checked = !!adm.send_current_location_with_alert;
+            sendLabel.appendChild(sendInput);
+            sendLabel.appendChild(document.createTextNode(' присылать текущую локацию'));
+
+            const zonesLabel = document.createElement('label');
+            const zonesInput = document.createElement('input');
+            zonesInput.type = 'text';
+            zonesInput.style.width = '120px';
+            zonesInput.value = Array.isArray(adm.zones) && adm.zones.length
+                ? adm.zones.join(',')
+                : '';
+            zonesLabel.appendChild(document.createTextNode(' зоны (id через запятую, пусто = все): '));
+            zonesLabel.appendChild(zonesInput);
+
+            subOptions.appendChild(startLabel);
+            subOptions.appendChild(document.createElement('br'));
+            subOptions.appendChild(stopLabel);
+            subOptions.appendChild(document.createElement('br'));
+            subOptions.appendChild(absentLabel);
+            subOptions.appendChild(document.createElement('br'));
+            subOptions.appendChild(sendLabel);
+            subOptions.appendChild(document.createElement('br'));
+            subOptions.appendChild(zonesLabel);
+
+            function applyOverrideState() {
+                const enabled = overrideInput.checked;
+                adm.override = enabled;
+
+                [startInput, stopInput, absentInput, absentHoursSelect, absentMinutesSelect, sendInput, zonesInput]
+                    .forEach(el => el.disabled = !enabled);
+
+                [startLabel, stopLabel, absentLabel, sendLabel, zonesLabel]
+                    .forEach(lbl => {
+                        if (!enabled) lbl.classList.add('disabled');
+                        else lbl.classList.remove('disabled');
+                    });
+            }
+
+            applyOverrideState();
+
+            overrideInput.addEventListener('change', () => {
+                applyOverrideState();
+                updateExport();
+            });
+
+            startInput.addEventListener('change', () => {
+                adm.notify_location_start = !!startInput.checked;
+                updateExport();
+            });
+
+            stopInput.addEventListener('change', () => {
+                adm.notify_location_stop = !!stopInput.checked;
+                updateExport();
+            });
+
+            absentInput.addEventListener('change', () => {
+                adm.notify_absent_enabled = !!absentInput.checked;
+                updateExport();
+            });
+
+            function updateAdminAbsent() {
+                const h = parseInt(absentHoursSelect.value, 10) || 0;
+                const m = parseInt(absentMinutesSelect.value, 10) || 0;
+                adm.notify_absent_minutes = h * 60 + m;
+                updateExport();
+            }
+
+            absentHoursSelect.addEventListener('change', updateAdminAbsent);
+            absentMinutesSelect.addEventListener('change', updateAdminAbsent);
+
+            sendInput.addEventListener('change', () => {
+                adm.send_current_location_with_alert = !!sendInput.checked;
+                updateExport();
+            });
+
+            zonesInput.addEventListener('input', () => {
+                const txt = zonesInput.value;
+                const arr = txt.split(/[,\s]+/).map(s => parseInt(s, 10))
+                    .filter(n => Number.isFinite(n) && n > 0);
+                adm.zones = arr;
+                updateExport();
+            });
+
+            settings.appendChild(overrideLabel);
+            settings.appendChild(subOptions);
+
+            row.appendChild(header);
+            row.appendChild(settings);
+
+            tgAdminsListEl.appendChild(row);
+        });
+    }
+
+    tgAdminAddBtn.addEventListener('click', () => {
+        const id = (tgAdminIdInput.value || '').trim();
+        const name = (tgAdminNameInput.value || '').trim() || null;
+        if (!id) {
+            alert('Введите id администратора');
+            return;
+        }
+        telegramConfig.admins.push({
+            id: String(id),
+            name: name,
+            override: false,
+            notify_location_start: telegramConfig.global.notify_location_start,
+            notify_location_stop: telegramConfig.global.notify_location_stop,
+            notify_absent_enabled: telegramConfig.global.notify_absent_enabled,
+            notify_absent_minutes: telegramConfig.global.notify_absent_minutes,
+            send_current_location_with_alert: telegramConfig.global.send_current_location_with_alert,
+            zones: []
+        });
+        tgAdminIdInput.value = '';
+        tgAdminNameInput.value = '';
+        renderTelegramAdmins();
+        updateExport();
+    });
+
+    function renderTelegramAcceptFrom() {
+        const mode = telegramConfig.accept_from.mode === 'list' ? 'list' : 'any';
+        tgAcceptAny.checked = mode === 'any';
+        tgAcceptList.checked = mode === 'list';
+        tgAcceptUsersBlock.style.display = mode === 'list' ? 'block' : 'none';
+
+        tgAcceptUsersListEl.innerHTML = '';
+        telegramConfig.accept_from.users.forEach((u, index) => {
+            const row = document.createElement('div');
+            row.className = 'zone-row';
+
+            const header = document.createElement('div');
+            header.className = 'zone-row-header';
+
+            const title = document.createElement('div');
+            const name = u.name ? u.name : '(без имени)';
+            title.textContent = `Пользователь #${index + 1}: ${name} (id: ${u.id})`;
+
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'btn';
+            removeBtn.style.fontSize = '11px';
+            removeBtn.textContent = 'Удалить';
+            removeBtn.addEventListener('click', (ev) => {
+                ev.stopPropagation();
+                telegramConfig.accept_from.users.splice(index, 1);
+                renderTelegramAcceptFrom();
+                updateExport();
+            });
+
+            header.appendChild(title);
+            header.appendChild(removeBtn);
+
+            row.appendChild(header);
+            tgAcceptUsersListEl.appendChild(row);
+        });
+    }
+
+    tgAcceptAny.addEventListener('change', () => {
+        if (tgAcceptAny.checked) {
+            telegramConfig.accept_from.mode = 'any';
+            renderTelegramAcceptFrom();
+            updateExport();
+        }
+    });
+
+    tgAcceptList.addEventListener('change', () => {
+        if (tgAcceptList.checked) {
+            telegramConfig.accept_from.mode = 'list';
+            renderTelegramAcceptFrom();
+            updateExport();
+        }
+    });
+
+    tgAcceptUserAddBtn.addEventListener('click', () => {
+        const id = (tgAcceptUserIdInput.value || '').trim();
+        const name = (tgAcceptUserNameInput.value || '').trim() || null;
+        if (!id) {
+            alert('Введите id отправителя локации');
+            return;
+        }
+        telegramConfig.accept_from.users.push({
+            id: String(id),
+            name: name
+        });
+        tgAcceptUserIdInput.value = '';
+        tgAcceptUserNameInput.value = '';
+        renderTelegramAcceptFrom();
+        updateExport();
+    });
+
+    tgShowNameCheckbox.addEventListener('change', () => {
+        telegramConfig.show_sender.show_name = !!tgShowNameCheckbox.checked;
+        updateExport();
+    });
+
+    tgShowIdCheckbox.addEventListener('change', () => {
+        telegramConfig.show_sender.show_id = !!tgShowIdCheckbox.checked;
+        updateExport();
+    });
+
+    function renderTelegramFromState() {
+        applyTelegramGlobalToUI();
+        renderTelegramAdmins();
+        renderTelegramAcceptFrom();
+        tgShowNameCheckbox.checked = !!telegramConfig.show_sender.show_name;
+        tgShowIdCheckbox.checked = !!telegramConfig.show_sender.show_id;
+    }
+
+    function updateExport() {
+        const exportData = {
+            global: {
+                secure: {
+                    notify_exit: !!globalNotifications.secure.notify_exit,
+                    notify_enter: !!globalNotifications.secure.notify_enter
+                },
+                danger: {
+                    notify_exit: !!globalNotifications.danger.notify_exit,
+                    notify_enter: !!globalNotifications.danger.notify_enter
+                }
+            },
+            zones: zones.map(z => {
+                const ll = z.circle.getLatLng();
+                return {
+                    id: z.id,
+                    type: z.type,
+                    name: z.name || null,
+                    center: {
+                        lat: ll.lat,
+                        lng: ll.lng
+                    },
+                    radius_m: z.circle.getRadius(),
+                    notifications: {
+                        override: !!z.notifyOverride,
+                        notify_on_enter: !!z.notifyOnEnter,
+                        notify_on_exit: !!z.notifyOnExit
+                    }
+                };
+            }),
+            telegram: {
+                global: {
+                    notify_location_start: !!telegramConfig.global.notify_location_start,
+                    notify_location_stop: !!telegramConfig.global.notify_location_stop,
+                    notify_absent_enabled: !!telegramConfig.global.notify_absent_enabled,
+                    notify_absent_minutes: telegramConfig.global.notify_absent_minutes,
+                    send_current_location_with_alert: !!telegramConfig.global.send_current_location_with_alert
+                },
+                admins: telegramConfig.admins.map(a => ({
+                    id: a.id,
+                    name: a.name || null,
+                    override: !!a.override,
+                    notify_location_start: !!a.notify_location_start,
+                    notify_location_stop: !!a.notify_location_stop,
+                    notify_absent_enabled: !!a.notify_absent_enabled,
+                    notify_absent_minutes: a.notify_absent_minutes,
+                    send_current_location_with_alert: !!a.send_current_location_with_alert,
+                    zones: Array.isArray(a.zones) ? a.zones.slice() : []
+                })),
+                accept_from: {
+                    mode: telegramConfig.accept_from.mode === 'list' ? 'list' : 'any',
+                    users: telegramConfig.accept_from.users.map(u => ({
+                        id: u.id,
+                        name: u.name || null
+                    }))
+                },
+                show_sender: {
+                    show_name: !!telegramConfig.show_sender.show_name,
+                    show_id: !!telegramConfig.show_sender.show_id
+                }
+            }
+        };
+
+        exportArea.value = JSON.stringify(exportData, null, 2);
+    }
+
+    function normalizeAdminFromConfig(a) {
+        if (!a || typeof a !== 'object') return null;
+        const idStr = a.id != null ? String(a.id) : '';
+        if (!idStr) return null;
+        const nameStr = a.name != null && a.name !== '' ? String(a.name) : null;
+        const total = Number(a.notify_absent_minutes);
+        let minutes = Number.isFinite(total) && total >= 0 ? Math.round(total) : 10;
+        const zonesList = Array.isArray(a.zones)
+            ? a.zones.map(z => parseInt(z, 10)).filter(n => Number.isFinite(n) && n > 0)
+            : [];
+        return {
+            id: idStr,
+            name: nameStr,
+            override: !!a.override,
+            notify_location_start: !!a.notify_location_start,
+            notify_location_stop: !!a.notify_location_stop,
+            notify_absent_enabled: !!a.notify_absent_enabled,
+            notify_absent_minutes: minutes,
+            send_current_location_with_alert: !!a.send_current_location_with_alert,
+            zones: zonesList
+        };
+    }
+
+    function loadTelegramFromExternal(t) {
+        telegramConfig = createDefaultTelegramConfig();
+        if (!t || typeof t !== 'object') {
+            return;
+        }
+
+        if (t.global && typeof t.global === 'object') {
+            const g = t.global;
+            telegramConfig.global.notify_location_start = !!g.notify_location_start;
+            telegramConfig.global.notify_location_stop = !!g.notify_location_stop;
+            telegramConfig.global.notify_absent_enabled = !!g.notify_absent_enabled;
+            const total = Number(g.notify_absent_minutes);
+            telegramConfig.global.notify_absent_minutes =
+                Number.isFinite(total) && total >= 0 ? Math.round(total) : 10;
+            telegramConfig.global.send_current_location_with_alert = !!g.send_current_location_with_alert;
+        }
+
+        if (Array.isArray(t.admins)) {
+            telegramConfig.admins = t.admins
+                .map(normalizeAdminFromConfig)
+                .filter(Boolean);
+        }
+
+        if (t.accept_from && typeof t.accept_from === 'object') {
+            const af = t.accept_from;
+            telegramConfig.accept_from.mode = af.mode === 'list' ? 'list' : 'any';
+            if (Array.isArray(af.users)) {
+                telegramConfig.accept_from.users = af.users.map(u => {
+                    if (!u || typeof u !== 'object') return null;
+                    const idStr = u.id != null ? String(u.id) : '';
+                    if (!idStr) return null;
+                    const nameStr = u.name != null && u.name !== '' ? String(u.name) : null;
+                    return { id: idStr, name: nameStr };
+                }).filter(Boolean);
+            }
+        }
+
+        if (t.show_sender && typeof t.show_sender === 'object') {
+            const ss = t.show_sender;
+            telegramConfig.show_sender.show_name =
+                'show_name' in ss ? !!ss.show_name : true;
+            telegramConfig.show_sender.show_id =
+                'show_id' in ss ? !!ss.show_id : true;
+        }
+    }
+
+    function applyConfigFromObject(config) {
+        zones.forEach(z => map.removeLayer(z.circle));
+        zones.length = 0;
+        zoneCounter = 1;
+
+        if (config && config.global && typeof config.global === 'object') {
+            const g = config.global;
+            if (g.secure) {
+                globalNotifications.secure.notify_exit = !!g.secure.notify_exit;
+                globalNotifications.secure.notify_enter =
+                    'notify_enter' in g.secure ? !!g.secure.notify_enter : true;
+            } else {
+                globalNotifications.secure.notify_exit = true;
+                globalNotifications.secure.notify_enter = true;
+            }
+            if (g.danger) {
+                globalNotifications.danger.notify_exit = !!g.danger.notify_exit;
+                globalNotifications.danger.notify_enter =
+                    'notify_enter' in g.danger ? !!g.danger.notify_enter : true;
+            } else {
+                globalNotifications.danger.notify_exit = true;
+                globalNotifications.danger.notify_enter = true;
+            }
+        } else {
+            globalNotifications.secure.notify_exit = true;
+            globalNotifications.secure.notify_enter = true;
+            globalNotifications.danger.notify_exit = true;
+            globalNotifications.danger.notify_enter = true;
+        }
+        applyGlobalsToUI();
+
+        const list = (config && Array.isArray(config.zones)) ? config.zones : [];
+        let maxId = 0;
+
+        list.forEach(zCfg => {
+            if (!zCfg || typeof zCfg !== 'object') return;
+
+            const type = zCfg.type === 'danger' ? 'danger' : 'secure';
+            const name = zCfg.name != null && zCfg.name !== '' ? String(zCfg.name) : null;
+
+            const center = zCfg.center || {};
+            const lat = Number(center.lat);
+            const lng = Number(center.lng);
+            const radius = Number(zCfg.radius_m);
+
+            if (!isFinite(lat) || !isFinite(lng) || !isFinite(radius) || radius <= 0) {
+                return;
+            }
+
+            const isDanger = type === 'danger';
+            const circle = L.circle([lat, lng], {
+                radius: radius,
+                color: isDanger ? '#c62828' : '#1565c0',
+                weight: 2,
+                fillColor: isDanger ? '#ef5350' : '#64b5f6',
+                fillOpacity: 0.15
+            }).addTo(map);
+
+            if (name) {
+                circle.bindTooltip(
+                    `${name} (${isDanger ? 'опасная' : 'безопасная'})`,
+                    { permanent: false }
+                );
+            }
+
+            const notif = zCfg.notifications || {};
+
+            const zoneId = (typeof zCfg.id === 'number' && isFinite(zCfg.id) && zCfg.id > 0)
+                ? zCfg.id
+                : zoneCounter;
+
+            const zone = {
+                id: zoneId,
+                type: type,
+                name: name,
+                circle: circle,
+                notifyOverride: !!notif.override,
+                notifyOnEnter: !!notif.notify_on_enter,
+                notifyOnExit: !!notif.notify_on_exit
+            };
+
+            zones.push(zone);
+            if (zoneId > maxId) maxId = zoneId;
+            zoneCounter++;
+        });
+
+        if (maxId > 0) {
+            zoneCounter = maxId + 1;
+        } else {
+            zoneCounter = zones.length + 1;
+        }
+
+        if (config && config.telegram) {
+            loadTelegramFromExternal(config.telegram);
+        } else {
+            telegramConfig = createDefaultTelegramConfig();
+        }
+
+        renderZonesListAndExport();
+        renderTelegramFromState();
+        updateExport();
+    }
+
+    btnApplyJson.addEventListener('click', () => {
+        const raw = exportArea.value.trim();
+        if (!raw) {
+            alert('Поле JSON пустое — нечего загружать.');
+            return;
+        }
+        try {
+            const cfg = JSON.parse(raw);
+            applyConfigFromObject(cfg);
+        } catch (e) {
+            alert('Ошибка разбора JSON: ' + e.message);
+        }
+    });
+
+    btnResetConfig.addEventListener('click', () => {
+        globalNotifications.secure.notify_exit = true;
+        globalNotifications.secure.notify_enter = true;
+        globalNotifications.danger.notify_exit = true;
+        globalNotifications.danger.notify_enter = true;
+        applyGlobalsToUI();
+
+        zones.forEach(z => map.removeLayer(z.circle));
+        zones.length = 0;
+        zoneCounter = 1;
+
+        telegramConfig = createDefaultTelegramConfig();
+        renderTelegramFromState();
+
+        renderZonesListAndExport();
+    });
+
+    btnClearZones.addEventListener('click', () => {
+        zones.forEach(z => map.removeLayer(z.circle));
+        zones.length = 0;
+        zoneCounter = 1;
+        renderZonesListAndExport();
+    });
+
+    btnRemoveLastZone.addEventListener('click', () => {
+        const last = zones.pop();
+        if (last) {
+            map.removeLayer(last.circle);
+            renderZonesListAndExport();
+        }
+    });
+
+    btnDownloadJson.addEventListener('click', () => {
+        const data = exportArea.value || '{}';
+        const blob = new Blob([data], { type: 'application/json;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'config.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    });
+
+    applyGlobalsToUI();
+    renderTelegramFromState();
+    renderZonesListAndExport();
+</script>
+</body>
+</html>
